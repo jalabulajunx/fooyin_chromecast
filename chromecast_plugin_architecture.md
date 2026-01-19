@@ -1,8 +1,23 @@
 # Fooyin Chromecast Plugin Architecture
 
+**Last Updated:** 2026-01-19
+**Status:** ✅ Implementation Complete - Ready for testing
+
 ## Overview
 
-A VLC-style Chromecast plugin for Fooyin music player that supports audio rendering with automatic transcoding for unsupported formats. The plugin will detect Chromecast devices on the network, establish communication, and stream audio with optional transcoding.
+A VLC-style Chromecast plugin for Fooyin music player that supports audio rendering with automatic transcoding for unsupported formats. The plugin detects Chromecast devices on the network, establishes communication using native Protocol Buffers, and streams audio with optional ffmpeg transcoding.
+
+### Key Changes from Original Plan
+
+**Cast Protocol Implementation:**
+- **Original Plan:** Use go-chromecast CLI tool via QProcess
+- **Current Implementation:** Native C++ using Protocol Buffers (protobuf)
+- **Rationale:** Better performance, reliability, and integration with Qt event loop
+
+**Transcoding Implementation:**
+- **Original Plan:** Reuse converter plugin infrastructure
+- **Current Implementation:** Direct ffmpeg integration via QProcess
+- **Rationale:** Simpler integration, full control over transcoding parameters
 
 ## Architecture Diagram
 
@@ -195,28 +210,29 @@ sequenceDiagram
 - Opus: 96 kbps CBR
 - MP3: 192 kbps CBR
 
-## Implementation Phases
+## Implementation Status
 
-### Phase 1: Foundation
-1. Create plugin structure and basic integration
-2. Implement device discovery
-3. Establish Chromecast communication
-4. Create simple UI components
+### ✅ Phase 1: Foundation (COMPLETED)
+1. ✅ Plugin structure and basic integration
+2. ✅ Device discovery using mDNS/avahi-browse
+3. ✅ Chromecast communication using Protocol Buffers
+4. ✅ UI components (device widget, settings page)
 
-### Phase 2: Media Streaming
-1. Develop local HTTP server
-2. Implement basic playback control
-3. Add metadata support
+### ✅ Phase 2: Media Streaming (COMPLETED)
+1. ✅ Local HTTP server with byte-range support
+2. ✅ Playback control (play, pause, stop, seek, volume)
+3. ✅ Metadata support (title, artist, album)
 
-### Phase 3: Transcoding
-1. Integrate ffmpeg transcoding
-2. Implement format detection and transcoding
-3. Optimize buffer management
+### ✅ Phase 3: Transcoding (COMPLETED)
+1. ✅ ffmpeg integration with async processing
+2. ✅ Format detection and transcoding
+3. ✅ Quality presets (High, Balanced, Efficient)
 
-### Phase 4: Enhancement
-1. Add advanced playback features
-2. Optimize performance
-3. Add error handling and recovery
+### ⚠️ Phase 4: Enhancement (IN PROGRESS)
+1. ✅ Settings page with device selection, transcoding, and network options
+2. ✅ Loading spinner during device discovery
+3. ⚠️ Real device testing needed
+4. ⚠️ Advanced features (queue management, gapless playback) - future work
 
 ## Technical Challenges
 
@@ -228,11 +244,38 @@ sequenceDiagram
 
 ## Dependencies
 
-- Qt 6.2+
+### Build Dependencies
+- CMake 3.18+
+- C++20 compiler (GCC 11+, Clang 13+)
+- Qt 6.2+ (Core, Widgets, Network)
+- Fooyin 0.8+ development headers
+- Protocol Buffers development files (libprotobuf-dev)
+
+### Runtime Dependencies
+**Required:**
+- Qt 6.2+ libraries
 - Fooyin 0.8+
-- Protocol Buffers (protobuf)
-- avahi-utils (for discovery)
-- ffmpeg (for transcoding)
+- avahi-daemon (for device discovery)
+- Protocol Buffers library (libprotobuf)
+
+**Optional (for full functionality):**
+- ffmpeg (for transcoding unsupported formats)
+
+### Installation Examples
+
+**Arch Linux:**
+```bash
+sudo pacman -S fooyin qt6-base avahi ffmpeg protobuf
+sudo systemctl start avahi-daemon
+sudo systemctl enable avahi-daemon
+```
+
+**Ubuntu/Debian:**
+```bash
+sudo apt install fooyin qt6-base avahi-daemon avahi-utils ffmpeg libprotobuf-dev
+sudo systemctl start avahi-daemon
+sudo systemctl enable avahi-daemon
+```
 
 ## Configuration
 
@@ -255,3 +298,156 @@ sequenceDiagram
 2. Secure communication via TLS (as required by Chromecast)
 3. CORS configuration for HTTP server
 4. Sanitization of metadata inputs
+
+---
+
+## Current Implementation Status
+
+### ✅ What's Working
+
+**Core Functionality:**
+- ✅ Plugin compiles and loads in fooyin
+- ✅ Registers as "Chromecast" output device
+- ✅ Settings page in Plugins → Chromecast menu
+- ✅ Device discovery with visual spinner feedback
+- ✅ HTTP server on configurable port (default 8010)
+- ✅ LAN IP detection for proper URL generation
+- ✅ Protocol Buffers-based Cast protocol implementation
+- ✅ Connection establishment and heartbeat
+- ✅ Session management and app launch
+- ✅ Playback commands (play, pause, stop, seek, volume)
+- ✅ Metadata transmission (title, artist, album)
+- ✅ ffmpeg transcoding with quality presets
+- ✅ Format detection and transcoding decision logic
+
+**User Interface:**
+- ✅ Device selection dropdown with discovery status
+- ✅ Loading spinner during discovery (~5 seconds)
+- ✅ Status label showing device count
+- ✅ Transcoding format and quality settings
+- ✅ Network settings (HTTP port, discovery timeout)
+- ✅ Apply/Reset buttons for settings
+
+**Integration:**
+- ✅ AudioOutput interface implementation
+- ✅ PlayerController signal connections
+- ✅ Track change detection
+- ✅ Playback state synchronization
+- ✅ Settings persistence
+
+### ✅ What Has Been Tested
+
+**Confirmed Working:**
+- ✅ Plugin compilation, loading, and registration
+- ✅ Device discovery via mDNS (finds real Chromecast devices)
+- ✅ Settings page UI in Plugins → Chromecast
+- ✅ Loading spinner during discovery (~5 seconds)
+- ✅ Device dropdown population
+- ✅ Settings persistence (Apply button)
+- ✅ HTTP server initialization
+- ✅ Cast protocol connection establishment
+
+### ⚠️ What Needs Additional Testing
+
+**Playback Verification:**
+- ⚠️ Complete playback cycle with audio confirmation
+- ⚠️ Transcoding with various input formats (WMA, APE, ALAC, etc.)
+- ⚠️ Seek functionality during active playback
+- ⚠️ Volume control synchronization
+- ⚠️ Multiple consecutive tracks
+- ⚠️ Network resilience (WiFi drops, reconnection)
+- ⚠️ Large file handling (>100MB)
+
+**Edge Cases:**
+- ⚠️ Large file handling (>100MB)
+- ⚠️ Simultaneous transcoding operations
+- ⚠️ Multiple Chromecast devices on network
+- ⚠️ Device disconnection during playback
+- ⚠️ Network latency and buffering
+
+### ❌ Not Implemented (Future Work)
+
+**Advanced Features:**
+- ❌ Queue management (currently single track)
+- ❌ Gapless playback between tracks
+- ❌ Album art transmission
+- ❌ Playlist synchronization
+- ❌ Multi-room audio (casting to multiple devices)
+- ❌ Audio groups support
+
+**UI Enhancements:**
+- ❌ Connection status indicator in main window
+- ❌ Current playback info display
+- ❌ Transcoding progress bar
+- ❌ Error messages in UI (currently logs only)
+- ❌ Device widget in layout editor
+
+**Optimizations:**
+- ❌ Transcoding cache management
+- ❌ Memory buffer streaming (currently file-based)
+- ❌ Prefetch/prebuffer next track
+- ❌ Dynamic quality adjustment based on network
+
+---
+
+## Testing Checklist
+
+### Before First Use
+- [ ] Install avahi-daemon and start service
+- [ ] Install ffmpeg for transcoding support
+- [ ] Build and install plugin to fooyin plugins directory
+- [ ] Verify Chromecast is on same network as computer
+
+### Basic Testing
+- [ ] Open Plugins → Chromecast and verify device discovery works
+- [ ] Select device from dropdown and click Apply
+- [ ] Go to Settings → Playback → Output and select "Chromecast"
+- [ ] Play a music track in native format (MP3, AAC, FLAC)
+- [ ] Verify audio plays on Chromecast device
+- [ ] Test pause/resume functionality
+- [ ] Test stop and play new track
+
+### Advanced Testing
+- [ ] Test transcoding with unsupported format (WMA, APE, ALAC)
+- [ ] Test seek functionality during playback
+- [ ] Test volume control
+- [ ] Change transcoding quality and verify bitrate changes
+- [ ] Test with large files (>100MB)
+- [ ] Test network resilience (disable/enable WiFi)
+- [ ] Test with multiple Chromecast devices
+
+### Settings Testing
+- [ ] Change HTTP server port and verify restart message
+- [ ] Change discovery timeout and verify device discovery time
+- [ ] Change transcoding format and quality
+- [ ] Verify settings persist after fooyin restart
+
+---
+
+## Known Limitations
+
+1. **Single Track Playback**: Currently streams one track at a time, no queue management
+2. **File-based Streaming**: Uses file paths instead of memory buffers (simpler but less flexible)
+3. **No Album Art**: Metadata includes title/artist/album but no cover images
+4. **No Gapless Playback**: Small gap between tracks when changing songs
+5. **Transcoding Delay**: Unsupported formats may have startup delay while transcoding
+6. **No Multi-room**: Cannot cast to multiple devices simultaneously
+
+---
+
+## Troubleshooting Quick Reference
+
+| Issue | Likely Cause | Solution |
+|-------|-------------|----------|
+| No devices found | avahi-daemon not running | `sudo systemctl start avahi-daemon` |
+| Plugin doesn't load | Missing dependencies | Verify Qt 6, protobuf installed |
+| Can't connect to device | Firewall blocking port 8010 | Allow TCP 8010 in firewall |
+| Transcoding fails | ffmpeg not installed | `sudo pacman -S ffmpeg` |
+| Audio doesn't play | HTTP server unreachable | Check LAN IP detection in logs |
+| Settings don't save | Config file not writable | Check `~/.config/fooyin/` permissions |
+
+---
+
+**Document Version:** 2.0
+**Last Updated:** 2026-01-19
+**Status:** Implementation Complete - Ready for Real Device Testing

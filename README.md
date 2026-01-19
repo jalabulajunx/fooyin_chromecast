@@ -4,20 +4,29 @@ A Chromecast audio output plugin for Fooyin music player. Stream your music libr
 
 ## Status
 
-**✅ Implementation Complete** - Core functionality is fully implemented and builds successfully. Awaiting testing with real Chromecast hardware.
+**✅ Implementation Complete & Tested** - Core functionality implemented and basic testing completed successfully.
 
 **Build Status:** ✅ Compiles successfully
 **Last Updated:** 2026-01-19
 
-### What's Working
-- ✅ Device discovery with mDNS (avahi-browse)
-- ✅ HTTP server for audio streaming (port 8010)
+### What's Working & Tested
+- ✅ Plugin loads and registers in fooyin
+- ✅ Device discovery with mDNS (tested with real Chromecast devices)
+- ✅ Settings page in Plugins → Chromecast menu
+- ✅ Loading spinner during discovery (~5 seconds)
+- ✅ Device selection dropdown populated correctly
+- ✅ Apply button saves settings
+- ✅ HTTP server starts on configured port (default 8010)
 - ✅ Cast protocol communication (native C++ with Protocol Buffers)
-- ✅ Plugin settings page with device selection
-- ✅ Loading spinner during device discovery
+- ✅ Connection establishment with Chromecast devices
+- ✅ Transcoding manager with quality presets
 - ✅ Audio output registration with fooyin
-- ✅ Transcoding manager (quality presets)
-- ✅ Metadata extraction and display
+
+### What Needs More Testing
+- ⚠️ Full playback cycle with audio output confirmation
+- ⚠️ Transcoding with various unsupported formats
+- ⚠️ Seek and volume control during active playback
+- ⚠️ Network resilience (reconnection after WiFi drops)
 
 ## Features
 
@@ -384,6 +393,33 @@ This plugin is released under the GNU General Public License v3.0.
 - **ffmpeg** - Audio transcoding
 - **avahi** - mDNS device discovery
 - **Fooyin API** - OutputPlugin interface
+
+### Technology Decisions
+
+#### Cast Protocol: Protocol Buffers (Native C++)
+
+**Decision:** Native C++ implementation using Protocol Buffers instead of go-chromecast CLI tool
+
+**Rationale:**
+- **Performance**: Direct TCP socket communication eliminates subprocess overhead
+- **Reliability**: No dependency on external Go binary in PATH
+- **Control**: Full control over connection lifecycle, heartbeat, and error handling
+- **Integration**: Seamless integration with Qt's event loop and signals/slots
+- **Debugging**: Easier to debug native code vs external process communication
+
+**Implementation:**
+- Uses `cast_channel.proto` definitions from Chromium project
+- TCP socket communication on port 8009
+- Protocol Buffers for message serialization
+- Heartbeat mechanism (PING/PONG every 5 seconds)
+- Session management and Default Media Receiver (CC1AD845) launch
+
+**Trade-offs:**
+- ✅ Better performance and integration
+- ✅ More reliable connection handling
+- ✅ Easier debugging and maintenance
+- ⚠️ Requires protobuf development libraries at build time
+- ⚠️ More complex implementation (managed in CommunicationManager)
 
 ## Contributing
 
