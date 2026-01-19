@@ -1,6 +1,9 @@
 # Build directory
 build/
 
+# Claude directory
+.claude/
+
 # CMake generated files
 CMakeCache.txt
 CMakeFiles/
