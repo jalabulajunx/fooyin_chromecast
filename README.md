@@ -7,12 +7,12 @@ A Chromecast audio output plugin for Fooyin music player. Stream your music libr
 **✅ Implementation Complete** - Core functionality is fully implemented and builds successfully. Awaiting testing with real Chromecast hardware.
 
 **Build Status:** ✅ Compiles successfully
-**Last Updated:** 2026-01-18
+**Last Updated:** 2026-01-19
 
 ### What's Working
 - ✅ Device discovery with mDNS (avahi-browse)
 - ✅ HTTP server for audio streaming (port 8010)
-- ✅ Cast protocol communication (via go-chromecast)
+- ✅ Cast protocol communication (native C++ with Protocol Buffers)
 - ✅ Plugin settings page with device selection
 - ✅ Loading spinner during device discovery
 - ✅ Audio output registration with fooyin
@@ -26,7 +26,7 @@ A Chromecast audio output plugin for Fooyin music player. Stream your music libr
 - **Device Discovery**: Automatically detects Chromecast devices using mDNS (avahi-browse)
 - **HTTP Streaming**: Built-in HTTP server streams audio files to Chromecast
 - **Automatic Transcoding**: Converts unsupported formats using ffmpeg
-- **Cast Protocol**: Communicates with Chromecast using go-chromecast CLI tool
+- **Cast Protocol**: Communicates with Chromecast using native C++ Protocol Buffers implementation
 - **Playback Controls**: Play, pause, stop, seek, and volume control
 - **Metadata Support**: Sends track title, artist, and album to Chromecast
 - **Format Detection**: Automatically determines which files need transcoding
@@ -38,19 +38,14 @@ A Chromecast audio output plugin for Fooyin music player. Stream your music libr
 **Required:**
 ```bash
 # Arch Linux
-sudo pacman -S fooyin qt6-base avahi ffmpeg go
+sudo pacman -S fooyin qt6-base avahi ffmpeg protobuf
 
 # Ubuntu/Debian
-sudo apt install fooyin qt6-base avahi-daemon avahi-utils ffmpeg golang
+sudo apt install fooyin qt6-base avahi-daemon avahi-utils ffmpeg libprotobuf-dev
 
 # Start avahi service
 sudo systemctl start avahi-daemon
 sudo systemctl enable avahi-daemon
-```
-
-**Install go-chromecast:**
-```bash
-go install github.com/vishen/go-chromecast/v2/cmd/go-chromecast@latest
 ```
 
 ### Build and Install Plugin
@@ -154,7 +149,7 @@ User → Fooyin Controls → Audio Engine → ChromecastOutput → HTTP Server �
 - **ChromecastOutput**: AudioOutput implementation that receives audio buffers
 - **DiscoveryManager**: mDNS device discovery using avahi-browse
 - **HttpServer**: Serves audio files to Chromecast over HTTP (with byte-range support)
-- **CommunicationManager**: Sends commands to Chromecast using go-chromecast
+- **CommunicationManager**: Sends commands to Chromecast using native Cast protocol (Protocol Buffers)
 - **TranscodingManager**: Converts unsupported formats using ffmpeg
 
 ### Supported Formats
@@ -257,23 +252,11 @@ sudo firewall-cmd --list-all  # Fedora
 
 **Solutions:**
 ```bash
-# 1. Verify go-chromecast is installed
-which go-chromecast
-# Should show: /home/username/go/bin/go-chromecast
-
-# 2. Add to PATH if needed
-echo 'export PATH=$PATH:~/go/bin' >> ~/.bashrc
-source ~/.bashrc
-
-# 3. Test manually
-go-chromecast -a 192.168.1.100 status
-# Should show JSON status response
-
-# 4. Check firewall allows HTTP port 8010
+# 1. Check firewall allows HTTP port 8010
 sudo ufw allow 8010/tcp  # Ubuntu
 sudo firewall-cmd --add-port=8010/tcp --permanent  # Fedora
 
-# 5. Check HTTP server started
+# 2. Check HTTP server started
 # Look in fooyin logs for:
 # "HTTP server started successfully on port 8010"
 ```
@@ -298,10 +281,7 @@ file /path/to/audio/file.mp3
 curl http://<your-computer-ip>:8010/
 # Should return HTTP 200 or 404 (not connection refused)
 
-# 4. Test go-chromecast manually
-go-chromecast -a 192.168.1.100 load "http://<your-ip>:8010/test.mp3"
-
-# 5. Restart fooyin and try again
+# 4. Restart fooyin and try again
 ```
 
 ### Transcoding fails
@@ -400,7 +380,7 @@ This plugin is released under the GNU General Public License v3.0.
 
 - **C++20** - Core language
 - **Qt 6.2+** - UI and networking framework
-- **go-chromecast** - Cast protocol communication
+- **Protocol Buffers** - Cast protocol communication
 - **ffmpeg** - Audio transcoding
 - **avahi** - mDNS device discovery
 - **Fooyin API** - OutputPlugin interface
@@ -416,5 +396,4 @@ The core implementation is complete! Help needed for:
 ## Credits
 
 - **Fooyin**: https://github.com/ludouzi/fooyin
-- **go-chromecast**: https://github.com/vishen/go-chromecast
 - **Qt**: https://www.qt.io/

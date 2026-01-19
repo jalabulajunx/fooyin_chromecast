@@ -10,17 +10,12 @@ A VLC-style Chromecast plugin for Fooyin music player that supports audio render
 flowchart TD
     subgraph Fooyin Music Player
         subgraph Chromecast Plugin
-            Discovery[Device Discovery\n(mDNS/SSDP)]
-            Comm[Communication\n(Google Cast Protocol)]
+            Discovery[Device Discovery\n(mDNS/avahi-browse)]
+            Comm[Communication\n(Cast Protocol v2)]
             HTTP[Local HTTP Server]
             Transcoder[Transcoding Pipeline]
             UI[User Interface]
             Integration[Playback Integration]
-        end
-        
-        subgraph Existing Converter Plugin
-            CodecWrappers[Codec Wrappers\n(MP3, FLAC, Opus, Ogg)]
-            ConversionManager[Conversion Manager]
         end
     end
     
@@ -35,14 +30,12 @@ flowchart TD
     Integration --> HTTP
     Integration --> Comm
     HTTP --> Transcoder
-    Transcoder --> CodecWrappers
     Discovery --> Comm
     Comm --> Chromecast
     HTTP --> Chromecast
     
     %% External connections
     FooyinPlayback[Fooyin Playback] --> Integration
-    CodecWrappers --> ConversionManager
 ```
 
 ## Core Components
@@ -50,27 +43,30 @@ flowchart TD
 ### 1. Device Discovery Module
 
 **Responsibilities:**
-- Discover Chromecast devices on the local network using mDNS/SSDP
+- Discover Chromecast devices on the local network using mDNS/avahi-browse
 - Monitor device availability (online/offline status)
 - Maintain device metadata (name, IP address, capabilities)
 
 **Implementation:**
-- Use Qt's Network module for mDNS discovery
-- Listen for `_googlecast._tcp.local` service announcements
-- Store device information in a discoverable list
+- Uses avahi-browse CLI tool via QProcess
+- Listens for `_googlecast._tcp.local` service announcements
+- Stores device information in a discoverable list
+- Handles discovery timeout and error recovery
 
 ### 2. Communication Module
 
 **Responsibilities:**
 - Establish and maintain TCP connection to Chromecast device (port 8009)
-- Implement Google Cast protocol (protobuf-based)
+- Implement Google Cast protocol (Cast v2) using Protocol Buffers
 - Handle device authentication and session management
 - Send media control commands (play, pause, stop, seek, volume)
 
 **Implementation:**
-- Use Qt's Network and WebSocket modules
-- Protocol buffers for message serialization
+- TCP socket communication using Qt's Network module
+- Protocol Buffers (protobuf) for message serialization
+- Heartbeat mechanism for connection monitoring (5-second interval)
 - State machine for connection lifecycle management
+- Session establishment and Default Media Receiver (CC1AD845) launch
 
 ### 3. Local HTTP Server
 
@@ -80,9 +76,11 @@ flowchart TD
 - Support byte-range requests for seeking
 
 **Implementation:**
-- Qt's HttpServer module (Qt 6.4+) or embedded HTTP server library
-- Serve media from memory buffer or temporary files
+- Custom HTTP server using Qt's QTcpServer
+- Serves media from file system paths with MD5-hashed URLs
 - CORS headers for Chromecast compatibility
+- Byte-range request support for seeking
+- LAN IP detection using QNetworkInterface
 
 ### 4. Transcoding Pipeline
 
@@ -92,23 +90,24 @@ flowchart TD
 - Stream transcoded audio to HTTP server
 
 **Implementation:**
-- Reuse existing CodecWrapper architecture
+- Uses ffmpeg CLI tool via QProcess
 - Supported output formats: AAC, MP3, Opus, FLAC, Vorbis, WAV
-- On-the-fly transcoding using QProcess
-- Buffer management for smooth playback
+- Quality presets (High, Balanced, Efficient)
+- Async processing with progress monitoring
+- Temporary file management for transcoded content
 
 ### 5. User Interface
 
 **Responsibilities:**
 - Device selector dropdown
-- Playback control buttons (play, pause, stop, volume)
-- Status indicator (connected, buffering, playing, paused)
+- Settings page for transcoding preferences
 - Integration with Fooyin's existing UI
 
 **Implementation:**
-- Qt Widgets or Qt Quick UI components
-- Settings page for transcoding quality preferences
+- Qt Widgets UI components
+- Settings page for transcoding quality and network preferences
 - Visual feedback for connection status
+- Device widget for layout integration
 
 ### 6. Playback Integration
 
@@ -116,12 +115,13 @@ flowchart TD
 - Integrate with Fooyin's playback system
 - Handle track changes
 - Synchronize playback state with Chromecast
-- Provide metadata (track title, artist, album, cover art)
+- Provide metadata (track title, artist, album)
 
 **Implementation:**
-- Fooyin plugin interface integration
-- Connect to playback events
-- Extract and send metadata
+- Fooyin AudioOutput interface implementation
+- Connect to PlayerController signals
+- Extract and send metadata to Chromecast
+- Hybrid streaming approach (buffers for position, files for content)
 
 ## Data Flow
 
@@ -179,20 +179,20 @@ sequenceDiagram
 
 ## Transcoding Quality Profiles
 
-**High Quality (Default):**
-- AAC: 256 kbps VBR
-- Opus: 192 kbps VBR
+**High Quality:**
+- AAC: 256 kbps CBR
+- Opus: 192 kbps CBR
 - MP3: 320 kbps CBR
 - FLAC: Lossless
 
 **Balanced:**
-- AAC: 192 kbps VBR
-- Opus: 128 kbps VBR
+- AAC: 192 kbps CBR
+- Opus: 128 kbps CBR
 - MP3: 256 kbps CBR
 
 **Efficient:**
-- AAC: 128 kbps VBR
-- Opus: 96 kbps VBR
+- AAC: 128 kbps CBR
+- Opus: 96 kbps CBR
 - MP3: 192 kbps CBR
 
 ## Implementation Phases
@@ -209,7 +209,7 @@ sequenceDiagram
 3. Add metadata support
 
 ### Phase 3: Transcoding
-1. Integrate existing converter plugin functionality
+1. Integrate ffmpeg transcoding
 2. Implement format detection and transcoding
 3. Optimize buffer management
 
@@ -230,8 +230,9 @@ sequenceDiagram
 
 - Qt 6.2+
 - Fooyin 0.8+
-- Protocol Buffers (for Cast protocol)
-- Existing converter plugin codecs (flac, lame, opus-tools, vorbis-tools)
+- Protocol Buffers (protobuf)
+- avahi-utils (for discovery)
+- ffmpeg (for transcoding)
 
 ## Configuration
 
