@@ -1,3 +1,5 @@
+**NOTE:** This project was completely written by AI. It doesn't prove anything except for the fact that it helps me in finding alternative for my workflow. If this helps, go ahead and use it as you like.
+
 # Fooyin Chromecast Plugin
 
 A Chromecast audio output plugin for Fooyin music player. Stream your music library to Chromecast devices as an **audio output renderer**, similar to VLC's "cast to" functionality.
