@@ -511,10 +511,16 @@ void ChromecastOutput::startStreaming(const Fooyin::Track& track)
     QString title = track.title();
     QString artist = track.artist();
     QString album = track.album();
-    QString coverUrl; // TODO: Extract cover art URL
+
+    // Create cover art URL (HTTP server will extract cover on demand)
+    QString coverUrl;
+    if (m_httpServer) {
+        coverUrl = m_httpServer->createCoverUrl(filePath);
+    }
 
     qInfo() << "Sending LOAD command to Chromecast - URL:" << streamUrl;
     qInfo() << "  Title:" << title << "Artist:" << artist << "Album:" << album;
+    qInfo() << "  Cover URL:" << coverUrl;
 
     // Send LOAD command to Chromecast
     m_communication->play(streamUrl, title, artist, album, coverUrl);

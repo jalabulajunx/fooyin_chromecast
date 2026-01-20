@@ -454,8 +454,6 @@ int CommunicationManager::nextRequestId()
 void CommunicationManager::play(const QString& mediaUrl, const QString& title, const QString& artist,
                                 const QString& album, const QString& coverUrl)
 {
-    Q_UNUSED(coverUrl);  // TODO: Implement cover art
-
     if (!m_socket || !m_socket->isConnected()) {
         qWarning() << "CommunicationManager: Not connected to Chromecast";
         return;
@@ -490,17 +488,7 @@ void CommunicationManager::play(const QString& mediaUrl, const QString& title, c
         contentType = "audio/wav";
     }
 
-    // Create subtitle (artist - album)
-    QString subtitle;
-    if (!artist.isEmpty() && !album.isEmpty()) {
-        subtitle = QString("%1 - %2").arg(artist, album);
-    } else if (!artist.isEmpty()) {
-        subtitle = artist;
-    } else if (!album.isEmpty()) {
-        subtitle = album;
-    }
-
-    // Send LOAD message
+    // Send LOAD message with full metadata including cover art
     if (m_socket) {
         m_socket->sendMessage(CastProtocol::createLoadMediaMessage(
             nextRequestId(),
@@ -509,7 +497,9 @@ void CommunicationManager::play(const QString& mediaUrl, const QString& title, c
             mediaUrl,
             contentType,
             title,
-            subtitle
+            artist,
+            album,
+            coverUrl
         ));
     }
 

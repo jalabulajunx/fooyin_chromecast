@@ -83,7 +83,9 @@ public:
         const QString& mediaUrl,
         const QString& contentType,
         const QString& title = QString(),
-        const QString& subtitle = QString()
+        const QString& artist = QString(),
+        const QString& album = QString(),
+        const QString& coverUrl = QString()
     );
 
     static extensions::api::cast_channel::CastMessage createPlayMessage(

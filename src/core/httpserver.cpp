@@ -19,6 +19,9 @@
 
 #include "httpserver.h"
 
+#include <core/engine/audioloader.h>
+#include <core/track.h>
+
 #include <QFile>
 #include <QFileInfo>
 #include <QUrl>
@@ -28,8 +31,9 @@
 
 namespace Chromecast {
 
-HttpServer::HttpServer(QObject* parent)
+HttpServer::HttpServer(std::shared_ptr<Fooyin::AudioLoader> audioLoader, QObject* parent)
     : QObject(parent)
+    , m_audioLoader(std::move(audioLoader))
     , m_server(new QTcpServer(this))
 {
     connect(m_server, &QTcpServer::newConnection, this, &HttpServer::onNewConnection);
@@ -145,6 +149,27 @@ QString HttpServer::createMediaUrl(const QString& mediaPath)
     return url;
 }
 
+QString HttpServer::createCoverUrl(const QString& mediaPath)
+{
+    if (!m_isRunning) {
+        qWarning() << "HTTP server not running";
+        return QString();
+    }
+
+    // Create a unique identifier for this file's cover
+    QByteArray hash = QCryptographicHash::hash(mediaPath.toUtf8(), QCryptographicHash::Md5);
+    QString fileId = QString(hash.toHex().left(16));
+    QString urlPath = QString("/cover/%1.jpg").arg(fileId);
+
+    // Store the mapping (media path, not cover path - we extract cover on demand)
+    m_coverFiles[urlPath] = mediaPath;
+
+    QString url = QString("%1%2").arg(serverUrl(), urlPath);
+    qInfo() << "Created cover URL:" << url << "for media file:" << mediaPath;
+
+    return url;
+}
+
 void HttpServer::onNewConnection()
 {
     qInfo() << "HTTP Server: New connection received";
@@ -214,6 +239,13 @@ void HttpServer::handleRequest(QTcpSocket* socket, const QString& request)
                 }
             }
         }
+    }
+
+    // Check if this is a cover request
+    if (m_coverFiles.contains(path)) {
+        QString mediaPath = m_coverFiles[path];
+        serveCover(socket, mediaPath);
+        return;
     }
 
     // Find the file for this path
@@ -297,6 +329,56 @@ void HttpServer::serveFile(QTcpSocket* socket, const QString& filePath, qint64 s
         }
     }
 
+    socket->flush();
+    socket->waitForBytesWritten();
+    socket->disconnectFromHost();
+}
+
+void HttpServer::serveCover(QTcpSocket* socket, const QString& mediaPath)
+{
+    if (!m_audioLoader) {
+        qWarning() << "AudioLoader not available for cover extraction";
+        send404(socket);
+        return;
+    }
+
+    // Create a Track object for the media file
+    Fooyin::Track track(mediaPath);
+
+    // Extract cover art using AudioLoader
+    QByteArray coverData = m_audioLoader->readTrackCover(track, Fooyin::Track::Cover::Front);
+
+    if (coverData.isEmpty()) {
+        qInfo() << "No cover art found for:" << mediaPath;
+        send404(socket);
+        return;
+    }
+
+    qInfo() << "Serving cover art for:" << mediaPath << "Size:" << coverData.size() << "bytes";
+
+    // Determine MIME type from image data
+    QString mimeType = "image/jpeg";  // Default
+    if (coverData.startsWith("\x89PNG")) {
+        mimeType = "image/png";
+    } else if (coverData.startsWith("GIF")) {
+        mimeType = "image/gif";
+    } else if (coverData.startsWith("\xFF\xD8\xFF")) {
+        mimeType = "image/jpeg";
+    }
+
+    // Send HTTP response with cover image
+    QString response = QString(
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Type: %1\r\n"
+        "Content-Length: %2\r\n"
+        "Access-Control-Allow-Origin: *\r\n"
+        "Cache-Control: max-age=3600\r\n"
+        "Connection: close\r\n"
+        "\r\n"
+    ).arg(mimeType).arg(coverData.size());
+
+    socket->write(response.toUtf8());
+    socket->write(coverData);
     socket->flush();
     socket->waitForBytesWritten();
     socket->disconnectFromHost();

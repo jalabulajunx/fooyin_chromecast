@@ -73,11 +73,12 @@ void ChromecastPlugin::initialise(const Fooyin::CorePluginContext& context)
 
     m_settings = context.settingsManager;
     m_playerController = context.playerController;
+    m_audioLoader = context.audioLoader;
 
     // Initialize core managers
     m_discoveryManager = new DiscoveryManager(this);
     m_communicationManager = new CommunicationManager(this);
-    m_httpServer = new HttpServer(this);
+    m_httpServer = new HttpServer(m_audioLoader, this);
     m_transcodingManager = new TranscodingManager(this);
     m_metadataExtractor = new TrackMetadataExtractor(this);
     m_playbackIntegrator = new PlaybackIntegrator(m_communicationManager, m_httpServer,

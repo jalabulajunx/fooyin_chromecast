@@ -25,7 +25,10 @@
 #include <core/engine/outputplugin.h>
 #include <chromecast/chromecast_common.h>
 
+#include <memory>
+
 namespace Fooyin {
+class AudioLoader;
 class SettingsManager;
 class WidgetProvider;
 class ActionManager;
@@ -75,6 +78,7 @@ private:
     Fooyin::WidgetProvider* m_widgetProvider{nullptr};
     Fooyin::ActionManager* m_actionManager{nullptr};
     Fooyin::PlayerController* m_playerController{nullptr};
+    std::shared_ptr<Fooyin::AudioLoader> m_audioLoader;
 
     DiscoveryManager* m_discoveryManager{nullptr};
     CommunicationManager* m_communicationManager{nullptr};

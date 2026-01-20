@@ -20,6 +20,7 @@
 #include "castprotocol.h"
 #include "cast_channel.pb.h"
 
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QDebug>
@@ -109,25 +110,39 @@ extensions::api::cast_channel::CastMessage CastProtocol::createLoadMediaMessage(
     const QString& mediaUrl,
     const QString& contentType,
     const QString& title,
-    const QString& subtitle)
+    const QString& artist,
+    const QString& album,
+    const QString& coverUrl)
 {
     QJsonObject media;
     media["contentId"] = mediaUrl;
     media["contentType"] = contentType;
     media["streamType"] = "BUFFERED";
 
-    // Add metadata if provided
-    if (!title.isEmpty() || !subtitle.isEmpty()) {
-        QJsonObject metadata;
-        metadata["metadataType"] = 0; // GenericMediaMetadata
-        if (!title.isEmpty()) {
-            metadata["title"] = title;
-        }
-        if (!subtitle.isEmpty()) {
-            metadata["subtitle"] = subtitle;
-        }
-        media["metadata"] = metadata;
+    // Add MusicTrackMediaMetadata (metadataType = 3) for music with cover art
+    QJsonObject metadata;
+    metadata["metadataType"] = 3; // MusicTrackMediaMetadata
+
+    if (!title.isEmpty()) {
+        metadata["title"] = title;
     }
+    if (!artist.isEmpty()) {
+        metadata["artist"] = artist;
+    }
+    if (!album.isEmpty()) {
+        metadata["albumName"] = album;
+    }
+
+    // Add cover art image if URL provided
+    if (!coverUrl.isEmpty()) {
+        QJsonArray images;
+        QJsonObject image;
+        image["url"] = coverUrl;
+        images.append(image);
+        metadata["images"] = images;
+    }
+
+    media["metadata"] = metadata;
 
     QJsonObject payload;
     payload["type"] = "LOAD";

@@ -25,6 +25,12 @@
 #include <QTcpSocket>
 #include <QMap>
 
+#include <memory>
+
+namespace Fooyin {
+class AudioLoader;
+}
+
 namespace Chromecast {
 
 class HttpServer : public QObject
@@ -32,7 +38,7 @@ class HttpServer : public QObject
     Q_OBJECT
 
 public:
-    explicit HttpServer(QObject* parent = nullptr);
+    explicit HttpServer(std::shared_ptr<Fooyin::AudioLoader> audioLoader, QObject* parent = nullptr);
     ~HttpServer() override;
 
     bool start(quint16 port = 8010);
@@ -43,6 +49,7 @@ public:
     QString serverUrl() const;
 
     QString createMediaUrl(const QString& mediaPath);
+    QString createCoverUrl(const QString& mediaPath);
 
 signals:
     void requestReceived(const QString& path);
@@ -56,11 +63,14 @@ private slots:
 private:
     void handleRequest(QTcpSocket* socket, const QString& request);
     void serveFile(QTcpSocket* socket, const QString& filePath, qint64 start = -1, qint64 end = -1);
+    void serveCover(QTcpSocket* socket, const QString& mediaPath);
     void send404(QTcpSocket* socket);
     QString getMimeType(const QString& filePath) const;
 
+    std::shared_ptr<Fooyin::AudioLoader> m_audioLoader;
     QTcpServer* m_server{nullptr};
     QMap<QString, QString> m_mediaFiles; // URL path -> file path mapping
+    QMap<QString, QString> m_coverFiles; // URL path -> media file path (for cover extraction)
     bool m_isRunning{false};
     quint16 m_port{8010};
 };
