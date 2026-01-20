@@ -42,7 +42,6 @@ qrc_*.cpp
 *.swp
 *.swo
 *~
-core
 
 # Windows
 Thumbs.db
@@ -66,6 +65,7 @@ Thumbs.db
 *.temp
 *.log
 *.bak
+*.backup
 
 # Protocol buffer generated files (if not in version control)
 *.pb.cc
