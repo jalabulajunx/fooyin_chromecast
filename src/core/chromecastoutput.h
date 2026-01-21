@@ -23,6 +23,7 @@
 #include <core/engine/audiobuffer.h>
 #include <core/engine/audioformat.h>
 #include <core/player/playerdefs.h>
+#include <chromecast/chromecast_common.h>
 
 #include <QObject>
 #include <QString>
@@ -84,6 +85,7 @@ public:
 private slots:
     void onTrackChanged(const Fooyin::Track& track);
     void onPlayStateChanged(Fooyin::Player::PlayState state);
+    void onChromecastPlaybackStatusChanged(PlaybackStatus status);
 
 private:
     void startStreaming(const Fooyin::Track& track);
@@ -117,6 +119,8 @@ private:
     // Real-time playback tracking
     QElapsedTimer m_playbackTimer;  // Tracks real elapsed time since playback started
     qint64 m_pausedElapsed{0};      // Accumulated time when paused
+    bool m_waitingForPlayback{false}; // True when we've sent LOAD but waiting for PLAYING state
+    bool m_playbackTimerStarted{false}; // True once timer has been started (after PLAYING state received)
 };
 
 } // namespace Chromecast

@@ -150,3 +150,76 @@ When implementing custom `AudioOutput` for streaming outputs (Chromecast, Airpla
 2. **Track real-time playback** using `QElapsedTimer` or similar
 3. **Create proper backpressure** by returning `freeSamples = 0` when buffer is full
 4. The engine relies heavily on `OutputState` for position tracking and end-of-track detection
+
+---
+
+## Update: Track skips 10-15 seconds before actual end (January 2026)
+
+### New Symptom
+
+After the initial fix, a new issue emerged: tracks would skip to the next track approximately 10-15 seconds **before** the track actually finished playing on the Chromecast.
+
+### Root Cause
+
+The playback timer was being started in `startStreaming()` immediately when the LOAD command was sent, but the Chromecast goes through a **BUFFERING** phase before actually starting playback. This delay (typically 5-15+ seconds depending on network conditions, file size, etc.) caused the timer to run ahead of actual playback.
+
+Additionally, `CommunicationManager::handleMediaStatusMessage()` was mapping both `IDLE` and `BUFFERING` states to `PlaybackStatus::Loading`, preventing proper detection of the BUFFERING → PLAYING transition.
+
+### Solution (Option 2: Delay Timer Until PLAYING State)
+
+1. **Connect to `CommunicationManager::playbackStatusChanged` signal** in ChromecastOutput constructor
+
+2. **Don't start timer in `startStreaming()`** - instead set flags:
+   ```cpp
+   m_playbackTimerStarted = false;
+   m_waitingForPlayback = true;
+   m_playbackTimer.invalidate();
+   ```
+
+3. **Start timer only when Chromecast reports PLAYING state**:
+   ```cpp
+   void ChromecastOutput::onChromecastPlaybackStatusChanged(PlaybackStatus status) {
+       if (status == PlaybackStatus::Playing && m_waitingForPlayback && !m_playbackTimerStarted) {
+           m_playbackTimer.start();
+           m_playbackTimerStarted = true;
+           m_waitingForPlayback = false;
+       }
+   }
+   ```
+
+4. **Return maximum queued samples while waiting for playback**:
+   ```cpp
+   if (m_waitingForPlayback || !m_playbackTimerStarted) {
+       state.queuedSamples = m_samplesWritten > 0 ? static_cast<int>(m_samplesWritten) : m_bufferSize;
+       // ... prevents engine from thinking track has ended
+   }
+   ```
+
+5. **Fix CommunicationManager to properly map BUFFERING state**:
+   ```cpp
+   // Before (BROKEN):
+   else if (playerState == "IDLE" || playerState == "BUFFERING") {
+       m_playbackStatus = PlaybackStatus::Loading;  // Wrong!
+   }
+   
+   // After (FIXED):
+   else if (playerState == "BUFFERING") {
+       m_playbackStatus = PlaybackStatus::Buffering;
+   }
+   else if (playerState == "IDLE") {
+       m_playbackStatus = PlaybackStatus::Idle;
+   }
+   ```
+
+### Files Modified (Update)
+
+- `src/core/chromecastoutput.h` - Added `m_waitingForPlayback`, `m_playbackTimerStarted` flags, `onChromecastPlaybackStatusChanged` slot
+- `src/core/chromecastoutput.cpp` - Connected to playbackStatusChanged signal, delayed timer start until PLAYING state
+- `src/core/communicationmanager.cpp` - Fixed BUFFERING state mapping
+
+### Key Insight
+
+With streaming outputs like Chromecast, the **local timer must be synchronized with the actual playback start on the remote device**, not with when the LOAD command is sent. This accounts for:
+- Network latency
+- Buffering time
+- Device processing time

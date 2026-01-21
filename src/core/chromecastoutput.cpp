@@ -58,6 +58,13 @@ ChromecastOutput::ChromecastOutput(DiscoveryManager* discovery,
     } else {
         qWarning() << "PlayerController not available in ChromecastOutput";
     }
+
+    // Connect to CommunicationManager's playbackStatusChanged to know when Chromecast
+    // actually starts playing (critical for accurate position tracking)
+    if (m_communication) {
+        connect(m_communication, &CommunicationManager::playbackStatusChanged,
+                this, &ChromecastOutput::onChromecastPlaybackStatusChanged);
+    }
 }
 
 ChromecastOutput::~ChromecastOutput()
@@ -131,6 +138,12 @@ void ChromecastOutput::uninit()
 
     m_isStreaming = false;
     m_currentTrackPath.clear();
+    
+    // Reset timing state
+    m_waitingForPlayback = false;
+    m_playbackTimerStarted = false;
+    m_playbackTimer.invalidate();
+    m_pausedElapsed = 0;
 }
 
 void ChromecastOutput::reset()
@@ -207,8 +220,20 @@ Fooyin::OutputState ChromecastOutput::currentState()
         return state;
     }
 
+    // If we're waiting for Chromecast to actually start playing (BUFFERING -> PLAYING),
+    // report that all samples are queued to prevent premature track-end detection
+    if (m_waitingForPlayback || !m_playbackTimerStarted) {
+        // While waiting for playback, report maximum buffer to prevent engine
+        // from thinking we've played through all the audio
+        state.queuedSamples = m_samplesWritten > 0 ? static_cast<int>(m_samplesWritten) : m_bufferSize;
+        state.freeSamples = m_bufferSize;  // Allow more data to be written
+        state.delay = static_cast<double>(state.queuedSamples) / (sampleRate * channels);
+        return state;
+    }
+
     // Use real elapsed time to calculate how many samples "should" have been played
     // This is more accurate than relying on Chromecast position updates (which are slow)
+    // IMPORTANT: Timer is only started when Chromecast transitions to PLAYING state
     qint64 elapsedMs = 0;
     if (m_playbackTimer.isValid() && !m_isPaused) {
         elapsedMs = m_playbackTimer.elapsed() + m_pausedElapsed;
@@ -308,13 +333,15 @@ void ChromecastOutput::setPaused(bool pause)
     qInfo() << "ChromecastOutput::setPaused -" << pause;
 
     if (pause && !m_isPaused) {
-        // Pausing: save elapsed time
-        if (m_playbackTimer.isValid()) {
+        // Pausing: save elapsed time (only if timer has been started)
+        if (m_playbackTimerStarted && m_playbackTimer.isValid()) {
             m_pausedElapsed += m_playbackTimer.elapsed();
         }
     } else if (!pause && m_isPaused) {
-        // Resuming: restart the timer
-        m_playbackTimer.restart();
+        // Resuming: restart the timer (only if it was started before)
+        if (m_playbackTimerStarted) {
+            m_playbackTimer.restart();
+        }
     }
 
     m_isPaused = pause;
@@ -464,9 +491,12 @@ void ChromecastOutput::startStreaming(const Fooyin::Track& track)
     // Reset samples counter for new track (critical for correct position tracking)
     m_samplesWritten = 0;
 
-    // Reset and start the playback timer for real-time position tracking
+    // Reset playback timing state - DON'T start timer yet!
+    // Timer will be started when Chromecast reports PLAYING state
     m_pausedElapsed = 0;
-    m_playbackTimer.start();
+    m_playbackTimerStarted = false;
+    m_waitingForPlayback = true;  // Mark that we're waiting for Chromecast to start playing
+    m_playbackTimer.invalidate();  // Ensure timer is not valid until PLAYING state
 
     // Check if file needs transcoding
     QString streamUrl;
@@ -536,6 +566,70 @@ bool ChromecastOutput::needsTranscoding(const QString& filePath) const
     QStringList nativeFormats = {"mp3", "aac", "m4a", "opus", "flac", "ogg", "wav"};
 
     return !nativeFormats.contains(extension);
+}
+
+void ChromecastOutput::onChromecastPlaybackStatusChanged(PlaybackStatus status)
+{
+    qInfo() << "ChromecastOutput::onChromecastPlaybackStatusChanged -" << static_cast<int>(status);
+
+    switch (status) {
+        case PlaybackStatus::Playing:
+            // Chromecast has actually started playing!
+            // NOW we start the timer for accurate position tracking
+            if (m_waitingForPlayback && !m_playbackTimerStarted) {
+                qInfo() << "ChromecastOutput: Chromecast now PLAYING - starting position timer";
+                m_playbackTimer.start();
+                m_playbackTimerStarted = true;
+                m_waitingForPlayback = false;
+                m_pausedElapsed = 0;  // Reset any accumulated pause time
+            }
+            break;
+
+        case PlaybackStatus::Paused:
+            // Chromecast paused - save elapsed time
+            if (m_playbackTimerStarted && m_playbackTimer.isValid()) {
+                m_pausedElapsed += m_playbackTimer.elapsed();
+            }
+            break;
+
+        case PlaybackStatus::Buffering:
+            // Still buffering, don't start timer yet - keep waiting for playback
+            qInfo() << "ChromecastOutput: Chromecast BUFFERING - waiting for PLAYING state";
+            m_waitingForPlayback = true;  // Ensure we stay in waiting state
+            break;
+
+        case PlaybackStatus::Idle:
+            // IDLE can happen during track transitions or when media ends
+            // Don't reset state immediately - it could be transitioning to a new load
+            qInfo() << "ChromecastOutput: Chromecast IDLE - may be transitioning";
+            // Only mark not waiting if we've already started playing (track finished)
+            if (m_playbackTimerStarted) {
+                qInfo() << "ChromecastOutput: Track playback appears complete";
+            }
+            break;
+
+        case PlaybackStatus::Stopped:
+            // Explicit stop - reset timing state
+            qInfo() << "ChromecastOutput: Chromecast STOPPED - resetting timing state";
+            m_playbackTimerStarted = false;
+            m_waitingForPlayback = false;
+            m_playbackTimer.invalidate();
+            m_pausedElapsed = 0;
+            break;
+
+        case PlaybackStatus::Loading:
+            // Loading started
+            m_waitingForPlayback = true;
+            m_playbackTimerStarted = false;
+            break;
+
+        case PlaybackStatus::Error:
+            // Error occurred
+            qWarning() << "ChromecastOutput: Playback error reported by Chromecast";
+            m_playbackTimerStarted = false;
+            m_waitingForPlayback = false;
+            break;
+    }
 }
 
 } // namespace Chromecast

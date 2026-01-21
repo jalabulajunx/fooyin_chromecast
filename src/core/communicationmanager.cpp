@@ -416,8 +416,12 @@ void CommunicationManager::handleMediaStatusMessage(const extensions::api::cast_
                 m_playbackStatus = PlaybackStatus::Paused;
                 emit playbackStatusChanged(m_playbackStatus);
             }
-            else if (playerState == "IDLE" || playerState == "BUFFERING") {
-                m_playbackStatus = PlaybackStatus::Loading;
+            else if (playerState == "BUFFERING") {
+                m_playbackStatus = PlaybackStatus::Buffering;
+                emit playbackStatusChanged(m_playbackStatus);
+            }
+            else if (playerState == "IDLE") {
+                m_playbackStatus = PlaybackStatus::Idle;
                 emit playbackStatusChanged(m_playbackStatus);
             }
 
