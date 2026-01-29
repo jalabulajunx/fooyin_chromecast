@@ -1,6 +1,6 @@
 /*
  * Fooyin
- * Copyright 2024, Your Name
+ * Copyright 2026, Sundararajan Mohan
  *
  * Fooyin is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
