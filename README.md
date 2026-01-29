@@ -4,6 +4,11 @@
 
 A Chromecast audio output plugin for Fooyin music player. Stream your music library to Chromecast devices as an **audio output renderer**, similar to VLC's "cast to" functionality.
 
+<img width="1205" height="768" alt="image" src="https://github.com/user-attachments/assets/a4311349-500c-4b26-8c98-1de606a7bb60" />
+
+<img width="1168" height="728" alt="image" src="https://github.com/user-attachments/assets/0c6c6b1a-47c2-429c-a4fe-db1ee3a1b5dc" />
+
+
 ## Status
 
 **✅ Implementation Complete & Tested** - Core functionality implemented and basic testing completed successfully.
